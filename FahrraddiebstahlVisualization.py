@@ -1,66 +1,88 @@
 import streamlit as st
-from streamlit_folium import folium_static
+from streamlit_folium import st_folium
 import folium
 import pandas as pd
-import requests
+import geopandas as gpd
 import json
+import psycopg2
+from psycopg2 import sql
+from pyproj import CRS
+import matplotlib.pyplot as plt
+conn = psycopg2.connect(
+    host="localhost",
+    database="DBSProject",
+    user="postgres",
+    password="123456"
+)
+
 
 st.header("Fahrraddiebstähle in Berlin visualisiert")
-bezirksgrenzen = pd.read_csv('C:/Users/Jutta/Downloads/Assignment10/bezirksgrenzen.csv')
-Fahrraddiebstahl=pd.read_csv('C:/Users/Jutta/Downloads/Assignment10/Fahrraddiebstahl.csv',encoding='latin-1')
-lor_planungsraeume_2021=pd.read_csv('C:/Users/Jutta/Downloads/Assignment10/lor_planungsraeume_2021.csv',encoding='utf-8')
-lor_planungsraeume_2021 = lor_planungsraeume_2021.drop(columns=['Name', 'description', 'timestamp','begin','end','altitudeMode','drawOrder','icon'])
-count_df = Fahrraddiebstahl.groupby('LOR').size().reset_index(name='Fahrraddiebstahlanzahl')
-merged_df = lor_planungsraeume_2021.merge(count_df, left_on='PLR_ID', right_on='LOR', how='inner')
-merged_df = merged_df.drop(columns=['LOR'])
-merged_df_new = merged_df
-merged_df_new['Fahrraddiebstahlanzahl'] = merged_df_new.groupby('BEZ')['Fahrraddiebstahlanzahl'].transform('sum')
-merged_df_new['GROESSE_M2'] = merged_df_new.groupby('BEZ')['GROESSE_M2'].transform('sum')
-merged_df_new_bez = merged_df_new.merge(bezirksgrenzen, left_on='BEZ', right_on='Gemeinde_schluessel', how='inner')
-merged_df_new_bez = merged_df_new_bez.drop(columns=['BEZ'])
 
 visualization = st.radio(
     "Die Auswahl der Beobachtungseinheit: ",
     ('Gemeinde', 'Raumhierarchie im RBS'))
-
-with open ('C:/Users/Jutta/Downloads/lor_planungsraeume_2021.geojson', 'r') as jsonFile:
-    geo_data = json.load(jsonFile)
-
-if visualization == 'Gemeinde':
-    map = folium.Map(location=[52.520008, 13.404954], zoom_start=10)
+def display_map(data,id,value,key,locations,type):
+    geodata = gpd.read_file("C:/Users/Jutta/Downloads/Assignment10/lor_planungsraeume_2021.gml")
+    crs = CRS.from_epsg(4326)  
+    geodata = geodata.to_crs(crs)
+    map = folium.Map(location=[52.520008, 13.404954], zoom_start=10, tiles='CartoDB positron')
     choropleth = folium.Choropleth(
-        geo_data = folium.GeoJson("https://tsb-opendata.s3.eu-central-1.amazonaws.com/lor_planungsgraeume_2021/lor_planungsraeume_2021.geojson"),
+        geo_data = geodata,
         name="choropleth",
-        data = merged_df_new_bez,
-        columns = ['Gemeinde_schluessel', 'Fahrraddiebstahlanzahl'],
-        key_on ='feature.properties.BEZ',
-        fill_color='YlOrRd',
-        fill_opacity=0.7,
-        line_opacity=0.2,
-        legend_name='Fahrraddiebstahlanzahl', 
-        highlight=True,
-    ).add_to(map)
-
-    choropleth.geojson.add_child(
-        folium.features.GeoJsonTooltip(fields=['BEZ'])
-    )
-    
-    folium_static(map)
-else:
-    map = folium.Map(location=[52.520008, 13.404954], zoom_start=10)
-    choropleth = folium.Choropleth(
-        geo_data = geo_data,
-        name="choropleth",
-        data = merged_df,
-        columns = ['PLR_ID', 'Fahrraddiebstahlanzahl'],
-        key_on ='feature.properties.PLR_ID',
+        data = data,
+        columns = [id, value],
+        key_on = key,
         fill_color='YlGn',
         fill_opacity=0.7,
-        line_opacity=0.2,
+        line_opacity=0.8,
         legend_name='Fahrraddiebstahlanzahl',
         highlight=True,
-    ).add_to(map)
-    folium_static(map)
+    )
+    choropleth.geojson.add_to(map)
+    data = data.set_index(id)
+    for feature in choropleth.geojson.data['features']:
+        location = feature['properties'][locations]
+        feature['properties']['Fahrraddiebstahlanzahl'] = ' :' + str(data.loc[location,'fahrraddiebstahlanzahl'] if location in list(data.index) else 'NOT AVILABLE')
+        feature['properties']['Total_Schadenshoehe'] = ' :' + str(data.loc[location,'total_schadenshoehe'] if location in list(data.index) else 'NOT AVILABLE')
+        if type == 'Gemeinde':
+            feature['properties']['Gml_id'] = ' :' + str(data.loc[location,'gml_id'] if location in list(data.index) else 'NOT AVILABLE')
+            feature['properties']['Gemeinde_name'] = ' :' + str(data.loc[location,'gemeinde_name'] if location in list(data.index) else 'NOT AVILABLE')
+            
+
+
+    if type == 'Gemeinde':
+        choropleth.geojson.add_child(
+        folium.features.GeoJsonTooltip(['BEZ','Fahrraddiebstahlanzahl','Total_Schadenshoehe','Gml_id','Gemeinde_name'])
+        )
+    else:
+        choropleth.geojson.add_child(
+        folium.features.GeoJsonTooltip(['PLR_ID','PLR_NAME','BEZ','GROESSE_M2','Fahrraddiebstahlanzahl','Total_Schadenshoehe'])
+        )
+    
+    
+    st_folium(map, width=700,height=450)
+
+
+if visualization == 'Gemeinde':
+    cursor = conn.cursor()
+    query = "SELECT SUM(f.schadenshoehe) AS Total_Schadenshoehe, COUNT(*) AS Fahrraddiebstahlanzahl, l.bez, b.gemeinde_name, b.gml_id FROM fahrraddiebstahl f INNER JOIN lor_planungsraeume_2021 l ON f.lor = l.plr_id Inner Join bezirksgrenzen b ON l.bez = b.gemeinde_schluessel GROUP BY l.bez, b.gemeinde_name, b.gml_id "
+    data_bez = pd.read_sql(query, conn)
+    cursor.close()
+    conn.close()
+    display_map(data_bez,'bez','fahrraddiebstahlanzahl','feature.properties.BEZ','BEZ','Gemeinde')
+else:
+    cursor = conn.cursor()
+    query = "SELECT SUM(f.schadenshoehe) AS Total_Schadenshoehe, COUNT(*) AS Fahrraddiebstahlanzahl, l.plr_id, l.plr_name, l.bez, l.groesse_m2 FROM fahrraddiebstahl f INNER JOIN lor_planungsraeume_2021 l ON f.lor = l.plr_id GROUP BY l.plr_id "
+    data_plr = pd.read_sql(query, conn)
+    cursor.close()
+    conn.close()
+    display_map(data_plr,'plr_id','fahrraddiebstahlanzahl','feature.properties.PLR_ID','PLR_ID','Raumhierarchie im RBS')
+    
+    
+
+
+
+
 
 
 
