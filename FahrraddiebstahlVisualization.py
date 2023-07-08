@@ -4,17 +4,12 @@ import folium
 import pandas as pd
 import geopandas as gpd
 import json
-import psycopg2
-from psycopg2 import sql
 from pyproj import CRS
 import matplotlib.pyplot as plt
-conn = psycopg2.connect(
-    host="localhost",
-    database="DBSProject",
-    user="postgres",
-    password="123456"
-)
+from  sqlalchemy import create_engine
 
+
+engine = create_engine("postgresql://dbs_user:password@localhost/dbs_project")
 
 st.header("Fahrraddiebstähle in Berlin visualisiert")
 
@@ -22,7 +17,7 @@ visualization = st.radio(
     "Die Auswahl der Beobachtungseinheit: ",
     ('Gemeinde', 'Raumhierarchie im RBS'))
 def display_map(data,id,value,key,locations,type):
-    geodata = gpd.read_file("C:/Users/Jutta/Downloads/Assignment10/lor_planungsraeume_2021.gml")
+    geodata = gpd.read_file("./lor_planungsraeume_2021.gml")
     crs = CRS.from_epsg(4326)  
     geodata = geodata.to_crs(crs)
     map = folium.Map(location=[52.520008, 13.404954], zoom_start=10, tiles='CartoDB positron')
@@ -64,18 +59,17 @@ def display_map(data,id,value,key,locations,type):
 
 
 if visualization == 'Gemeinde':
-    cursor = conn.cursor()
-    query = "SELECT SUM(f.schadenshoehe) AS Total_Schadenshoehe, COUNT(*) AS Fahrraddiebstahlanzahl, l.bez, b.gemeinde_name, b.gml_id FROM fahrraddiebstahl f INNER JOIN lor_planungsraeume_2021 l ON f.lor = l.plr_id Inner Join bezirksgrenzen b ON l.bez = b.gemeinde_schluessel GROUP BY l.bez, b.gemeinde_name, b.gml_id "
-    data_bez = pd.read_sql(query, conn)
-    cursor.close()
-    conn.close()
+    query = "SELECT SUM(f.schadenshoehe) AS Total_Schadenshoehe, COUNT(*) AS Fahrraddiebstahlanzahl, l.bez, b.gemeinde_name, b.gml_id FROM schema.fahrraddiebstahl f INNER JOIN schema.lor_planungsraeume_2021 l ON f.lor = l.plr_id Inner Join schema.bezirksgrenzen b ON l.bez = b.gemeinde_schluessel GROUP BY l.bez, b.gemeinde_name, b.gml_id;"
+    data_bez = pd.read_sql(query, engine)
+    # Close the database connection
+    engine.dispose()
+
     display_map(data_bez,'bez','fahrraddiebstahlanzahl','feature.properties.BEZ','BEZ','Gemeinde')
 else:
-    cursor = conn.cursor()
-    query = "SELECT SUM(f.schadenshoehe) AS Total_Schadenshoehe, COUNT(*) AS Fahrraddiebstahlanzahl, l.plr_id, l.plr_name, l.bez, l.groesse_m2 FROM fahrraddiebstahl f INNER JOIN lor_planungsraeume_2021 l ON f.lor = l.plr_id GROUP BY l.plr_id "
-    data_plr = pd.read_sql(query, conn)
-    cursor.close()
-    conn.close()
+    query = "SELECT SUM(f.schadenshoehe) AS Total_Schadenshoehe, COUNT(*) AS Fahrraddiebstahlanzahl, l.plr_id, l.plr_name, l.bez, l.groesse_m2 FROM schema.fahrraddiebstahl f INNER JOIN schema.lor_planungsraeume_2021 l ON f.lor = l.plr_id GROUP BY l.plr_id;"
+    data_plr = pd.read_sql(query, engine)
+    # Close the database connection
+    engine.dispose()
     display_map(data_plr,'plr_id','fahrraddiebstahlanzahl','feature.properties.PLR_ID','PLR_ID','Raumhierarchie im RBS')
     
     

@@ -1,0 +1,9 @@
+sqlalchemy
+streamlit
+folium
+streamlit_folium
+pandas
+geopandas
+pyproj
+matplotlib
+
