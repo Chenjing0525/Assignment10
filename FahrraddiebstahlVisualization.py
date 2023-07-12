@@ -59,14 +59,14 @@ def display_map(data,id,value,key,locations,type):
 
 
 if visualization == 'Gemeinde':
-    query = "SELECT SUM(f.schadenshoehe) AS Total_Schadenshoehe, COUNT(*) AS Fahrraddiebstahlanzahl, l.bez, b.gemeinde_name, b.gml_id FROM schema.fahrraddiebstahl f INNER JOIN schema.lor_planungsraeume_2021 l ON f.lor = l.plr_id Inner Join schema.bezirksgrenzen b ON l.bez = b.gemeinde_schluessel GROUP BY l.bez, b.gemeinde_name, b.gml_id;"
+    query = "SELECT SUM(f.schadenshoehe) AS Total_Schadenshoehe, COUNT(*) AS Fahrraddiebstahlanzahl, l.bez, b.gemeinde_name, b.gml_id FROM dbs_schema.fahrraddiebstahl f INNER JOIN dbs_schema.lor_planungsraeume_2021 l ON f.lor = l.plr_id Inner Join dbs_schema.bezirksgrenzen b ON l.bez = b.gemeinde_schluessel GROUP BY l.bez, b.gemeinde_name, b.gml_id;"
     data_bez = pd.read_sql(query, engine)
     # Close the database connection
     engine.dispose()
 
     display_map(data_bez,'bez','fahrraddiebstahlanzahl','feature.properties.BEZ','BEZ','Gemeinde')
 else:
-    query = "SELECT SUM(f.schadenshoehe) AS Total_Schadenshoehe, COUNT(*) AS Fahrraddiebstahlanzahl, l.plr_id, l.plr_name, l.bez, l.groesse_m2 FROM schema.fahrraddiebstahl f INNER JOIN schema.lor_planungsraeume_2021 l ON f.lor = l.plr_id GROUP BY l.plr_id;"
+    query = "SELECT SUM(f.schadenshoehe) AS Total_Schadenshoehe, COUNT(*) AS Fahrraddiebstahlanzahl, l.plr_id, l.plr_name, l.bez, l.groesse_m2 FROM dbs_schema.fahrraddiebstahl f INNER JOIN dbs_schema.lor_planungsraeume_2021 l ON f.lor = l.plr_id GROUP BY l.plr_id;"
     data_plr = pd.read_sql(query, engine)
     # Close the database connection
     engine.dispose()

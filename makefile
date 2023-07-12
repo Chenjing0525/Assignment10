@@ -3,12 +3,12 @@
 
 USER=dbs_user
 DATABASE=dbs_project
-SCHEMA=schema
+SCHEMA=dbs_schema
 PG_CONFIG=host=localhost user=$(USER) dbname=$(DATABASE) 
 PG_CONFIG_SCHEMA=$(PG_CONFIG) options=--search_path=$(SCHEMA)
 
 
-all: downloader correction db-clean db-build deps launch## Execute db-clean and db-build
+all: downloader correction db-clean db-build deps-install launch ## Execute db-clean and db-build
 
 
 downloader: ## Download all csv files
@@ -22,8 +22,8 @@ downloader: ## Download all csv files
 	wget --no-check-certificate 'https://www.polizei-berlin.eu/Fahrraddiebstahl/Fahrraddiebstahl.csv' -P download/
 
 correction: 
-	sed -ni 's/\(.*\),\(.*\),\(.*\),\(.*\),\(.*\),\(.*\),\(.*\),\(.*\),\(.*\),\(.*\),\(.*\)/\1,\2,\3:00:00,\4,\5:00:00,\6,\7,\8,\9,\10,\11/p' ./download/Fahrraddiebstahl.csv 
-	sed -i 's/\r$///' ./download/Fahrraddiebstahl.csv
+	LC_CTYPE=C sed -ni '' 's/\(.*\),\(.*\),\(.*\),\(.*\),\(.*\),\(.*\),\(.*\),\(.*\),\(.*\),\(.*\),\(.*\)/\1,\2,\3:00:00,\4,\5:00:00,\6,\7,\8,\9,\10,\11/p' ./download/Fahrraddiebstahl.csv 
+	LC_CTYPE=C sed -i '' 's/\r$///' ./download/Fahrraddiebstahl.csv
 
 db-clean: ## Remove all previous installation
 	psql "$(PG_CONFIG_SCHEMA)" -c "DROP TABLE IF EXISTS Fahrraddiebstahl;"
@@ -36,8 +36,10 @@ db-build: ## Build from scratch the database
 	psql "$(PG_CONFIG_SCHEMA)" -f "create-table.sql"
 	psql "$(PG_CONFIG_SCHEMA)" -f "load-data.sql"
 
-deps: ## Install dependencies
+deps-install: ## Install dependencies
 	pip install -r requirements.txt
 
+deps-uninstall: ## Uninstall dependencies
+	pip uninstall -y -r requirements.txt
 launch:
 	streamlit run FahrraddiebstahlVisualization.py

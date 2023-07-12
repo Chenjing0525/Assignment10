@@ -1,4 +1,4 @@
-sqlalchemy
+sqlalchemy==1.4.46
 streamlit
 folium
 streamlit_folium
@@ -6,4 +6,5 @@ pandas
 geopandas
 pyproj
 matplotlib
+markupsafe==2.0.1
 
